@@ -1,0 +1,211 @@
+#!/usr/bin/env zsh
+
+# ============================================
+# 🎯 Quick Project Navigator for Vibe Coders
+# Instant project switching in Ghostty/terminal
+# ============================================
+
+# Define your workspace projects here
+# Format: alias -> full path
+declare -A WORKSPACE_PROJECTS
+WORKSPACE_PROJECTS=(
+    "apihub"           "$HOME/apihub"
+    "strix"            "$HOME/strix"
+    "devkb"            "$HOME/devkb-knowledge-base"
+    "mini-build"       "$HOME/mini-build-your-own-x"
+    "mini-build-cli"   "$HOME/mini-build-cli"
+    "mini-build-game"  "$HOME/mini-build-game"
+    "mini-build-web"   "$HOME/mini-build-web"
+    "jira-sync"        "$HOME/github-jira-sync"
+    "impl-recs"        "$HOME/implementation-recommendations"
+    "coding-tutor"    "$HOME/coding-tutor-v2"
+    "key-vault"        "$HOME/api-key-vault"
+    "pocketbase"       "$HOME/pocketbase-forking-guide"
+    "conditional"      "$HOME/conditional-branching-engine"
+)
+
+# Get list of available projects
+_projects_list() {
+    local projects=("${(@k)WORKSPACE_PROJECTS}")
+    printf '%s\n' "${projects[@]}" | sort
+}
+
+# Quick cd to any project - main function
+# Usage: p <project-alias> or just p and select from list
+p() {
+    local target_project="$1"
+    
+    # If no argument, show interactive picker
+    if [[ -z "$target_project" ]]; then
+        _projects_picker
+        return
+    fi
+    
+    # Find matching project
+    local matched_project=""
+    local projects=("${(@k)WORKSPACE_PROJECTS}")
+    
+    # Exact match first
+    if [[ -n "${WORKSPACE_PROJECTS[$target_project]}" ]]; then
+        matched_project="$target_project"
+    else
+        # Fuzzy match
+        for proj in "${projects[@]}"; do
+            if [[ "$proj" == *"$target_project"* ]]; then
+                if [[ -z "$matched_project" ]]; then
+                    matched_project="$proj"
+                else
+                    # Multiple matches - show picker
+                    echo "Multiple matches found:"
+                    _projects_list | grep "$target_project"
+                    return 1
+                fi
+            fi
+        done
+    fi
+    
+    if [[ -n "$matched_project" && -d "${WORKSPACE_PROJECTS[$matched_project]}" ]]; then
+        cd "${WORKSPACE_PROJECTS[$matched_project]}" || return 1
+        echo "📁 Switched to: $matched_project"
+        ls -la
+    else
+        echo "❌ Project not found: $target_project"
+        echo "\nAvailable projects:"
+        _projects_list
+        return 1
+    fi
+}
+
+# Interactive project picker using fzf
+_projects_picker() {
+    local selected
+    selected=$(_projects_list | fzf --prompt="Jump to project: " --height=40% --reverse --border)
+    
+    if [[ -n "$selected" && -n "${WORKSPACE_PROJECTS[$selected]}" ]]; then
+        cd "${WORKSPACE_PROJECTS[$selected]}" || return 1
+        echo "📁 Switched to: $selected"
+        ls -la
+    fi
+}
+
+# List all projects with status
+projects() {
+    echo "🎯 Your Workspace Projects"
+    echo "=========================="
+    
+    local current_dir="$(pwd)"
+    
+    for proj in $(_projects_list); do
+        local proj_path="${WORKSPACE_PROJECTS[$proj]}"
+        local proj_status="📁"
+        local git_status=""
+        
+        if [[ -d "$proj_path/.git" ]]; then
+            git_status=" (git)"
+            # Check for uncommitted changes
+            if [[ -n "$(cd "$proj_path" && git status --porcelain 2>/dev/null)" ]]; then
+                git_status=" (git ✦)"
+            fi
+        fi
+        
+        # Check if currently in this project
+        if [[ "$current_dir" == "$proj_path"* ]]; then
+            echo "→ $proj$git_status"
+        else
+            echo "  $proj$git_status"
+        fi
+    done
+    
+    echo ""
+    echo "Usage: p <project>   # Jump to project"
+    echo "       p             # Interactive picker"
+}
+
+# Add project to workspace (runtime)
+pa() {
+    local alias_name="$1"
+    local project_path="$2"
+    
+    if [[ -z "$alias_name" || -z "$project_path" ]]; then
+        echo "Usage: pa <alias> <path>"
+        echo "Example: pa myproject ~/Projects/myproject"
+        return 1
+    fi
+    
+    # Expand path
+    project_path=$(eval echo "$project_path")
+    
+    if [[ ! -d "$project_path" ]]; then
+        echo "❌ Directory does not exist: $project_path"
+        return 1
+    fi
+    
+    WORKSPACE_PROJECTS[$alias_name]="$project_path"
+    echo "✅ Added project: $alias_name -> $project_path"
+    
+    # Offer to save
+    echo "To save permanently, add this to your ~/.zsh-projects:"
+    echo "WORKSPACE_PROJECTS+=(\"$alias_name\" \"$project_path\")"
+}
+
+# Quick open in VS Code
+codehere() {
+    if [[ -n "$1" ]]; then
+        local target="$1"
+    else
+        local target="."
+    fi
+    code "$target"
+}
+
+# Git status for all projects
+gstatus() {
+    echo "🔍 Git Status Across All Projects"
+    echo "=================================="
+    
+    for proj in $(_projects_list); do
+        local proj_path="${WORKSPACE_PROJECTS[$proj]}"
+        if [[ -d "$proj_path/.git" ]]; then
+            local git_status=$(cd "$proj_path" && git status --porcelain 2>/dev/null | head -5)
+            if [[ -n "$git_status" ]]; then
+                echo "⚠️  $proj - has changes"
+                cd "$proj_path" && git status --short | head -3
+            else
+                echo "✓ $proj - clean"
+            fi
+        fi
+    done
+}
+
+# Pull all git repos
+gpull() {
+    echo "🔄 Pulling all projects..."
+    
+    for proj in $(_projects_list); do
+        local path="${WORKSPACE_PROJECTS[$proj]}"
+        if [[ -d "$path/.git" ]]; then
+            echo "↻ Pulling $proj..."
+            cd "$path" && git pull 2>&1 | sed 's/^/   /'
+        fi
+    done
+    
+    echo "✅ Done!"
+}
+
+# Completion for p command (loaded after compinit)
+_p_setup_completion() {
+    autoload -Uz compinit
+    compinit
+    
+    _p_completion() {
+        local -a projects
+        projects=("${(@k)WORKSPACE_PROJECTS}")
+        _describe 'project' projects
+    }
+    
+    compdef _p_completion p
+    compdef _p_completion pa
+}
+
+# Hook into zsh's compsys
+zstyle ':completion:*' menu select
