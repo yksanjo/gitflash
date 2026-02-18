@@ -1,6 +1,8 @@
-# 🎯 Project Navigator for Vibe Coders
+# 🎯 GitFlash - Project Navigator for Vibe Coders
 
 A blazing-fast CLI project switcher for developers who work with many projects. Navigate between projects instantly with fuzzy search, check git status across all repos, and automate your workflow.
+
+https://github.com/yksanjo/gitflash
 
 ![Project Navigator Demo](https://via.placeholder.com/800x400?text=Project+Navigator+Demo)
 
@@ -25,7 +27,7 @@ brew install fzf
 ### 2. Download the Script
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/yksanjo/project-navigator/main/.zsh-projects -o ~/.zsh-projects
+curl -fsSL https://raw.githubusercontent.com/yksanjo/gitflash/main/.zsh-projects -o ~/.zsh-projects
 ```
 
 ### 3. Add to Your Shell
